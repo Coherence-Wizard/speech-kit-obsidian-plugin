@@ -364,6 +364,12 @@ export class LocalSttSettingTab extends PluginSettingTab {
       isValid: isDictationAnchor,
     });
 
+    addToggleSetting(outputCard, this.access, {
+      name: 'Embed MP3 recording',
+      desc: 'Save microphone audio to your attachment folder and embed it at the start of the note body after dictation finishes. Encoding stays on this device. System audio is not included. Applies to new sessions; cancelled recordings are discarded.',
+      key: 'embedMp3Recording',
+    });
+
     renderAutomaticCopyFinalizedUtterancesSetting(outputCard, this.access);
 
     this.renderTranscriptFormattingSetting(outputCard);

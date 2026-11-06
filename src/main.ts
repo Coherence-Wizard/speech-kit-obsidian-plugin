@@ -10,11 +10,11 @@ import {
   requestUrl,
   setIcon,
 } from 'obsidian';
-
 import { AudioCaptureStream } from './audio/audio-capture-stream';
 import { AudioFileError, FfmpegAudioFileDecoder } from './audio/audio-file-decoder';
 import { pickLocalAudioFile } from './audio/local-audio-file-picker';
 import { isMediaToolInstalled } from './audio/media-tool-installer';
+import { createMp3Recording } from './audio/mp3-recording';
 import { SidecarAudioLevelMeter } from './audio/sidecar-audio-level-meter';
 import { registerCommands } from './commands/register-commands';
 import { AudioFileTranscriptionController } from './dictation/audio-file-transcription-controller';
@@ -275,6 +275,11 @@ export default class LocalSttPlugin extends Plugin {
     this.dictationController = new DictationSessionController({
       audioLevelMeter: this.audioLevelMeter,
       captureStream: this.audioCaptureStream,
+      createRecording: () => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) throw new Error('No note is open for the MP3 recording.');
+        return createMp3Recording(this.app, file);
+      },
       createSession: ({ callbacks, placement, rendererOptions, sessionId }) =>
         Session.createFromActiveEditor(this.app, {
           callbacks,

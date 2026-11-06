@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
 import { Platform } from 'obsidian';
-
 import type { AudioCaptureStream } from '../audio/audio-capture-stream';
 import { formatMicrophoneCaptureErrorMessage } from '../audio/microphone-permission-message';
+import type { Mp3Recording } from '../audio/mp3-recording';
 import type { SidecarAudioLevelMeter } from '../audio/sidecar-audio-level-meter';
 import {
   formatSystemAudioErrorMessage,
@@ -114,6 +114,7 @@ type SessionPhase = 'starting' | 'active' | 'stopping' | 'cancelling' | 'stopped
 type TerminalArbitrationState = 'open' | 'feedback-claimed' | 'cancelled';
 
 interface ManagedSession {
+  recording?: Mp3Recording;
   anchorTimerId: number | null;
   capabilityDropLogKeys: Set<string>;
   // Final revisions enter this FIFO so concurrent per-utterance cleanups land
@@ -149,6 +150,7 @@ interface DictationSessionControllerDependencies {
     rendererOptions: TranscriptRenderOptions;
     sessionId: string;
   }) => ControllerSession;
+  createRecording?: () => Promise<Mp3Recording>;
   createLlmRouter: (settings: PluginSettings) => LlmRouter | null;
   feedback: Pick<UserFeedback, 'show'>;
   getSettings: () => PluginSettings;
@@ -480,6 +482,14 @@ export class DictationSessionController {
     this.dependencies.logger?.debug('session', `starting dictation session ${sessionId}`);
 
     try {
+      if (settings.embedMp3Recording && this.dependencies.createRecording) {
+        const recording = await this.dependencies.createRecording();
+        if (entry.phase !== 'starting' || this.activeSessionId !== sessionId) {
+          await recording.finish(true);
+          return;
+        }
+        entry.recording = recording;
+      }
       await this.dependencies.sidecarConnection.startSession({
         accelerationPreference: snapshot.accelerationPreference,
         // Engine segment timing is always present when the model provides it.
@@ -521,6 +531,18 @@ export class DictationSessionController {
             return;
           }
 
+          try {
+            activeEntry.recording?.append(frameBytes);
+          } catch (error) {
+            const recording = activeEntry.recording;
+            delete activeEntry.recording;
+            void recording?.finish(true).catch(() => {});
+            this.dependencies.logger?.error('audio', 'MP3 capture failed', error);
+            this.dependencies.feedback.show({
+              intent: 'error',
+              message: 'MP3 recording failed. Dictation will continue without an audio attachment.',
+            });
+          }
           try {
             this.dependencies.sidecarConnection.sendAudioFrame(frameSessionId, frameBytes);
           } catch (error) {
@@ -739,6 +761,17 @@ export class DictationSessionController {
     this.abortProviderCleanups(entry);
     entry.session.clearSessionProcessingMark();
     entry.session.dispose();
+    if (entry.recording) {
+      void entry.recording
+        .finish(entry.terminalArbitration === 'cancelled' || entry.phase === 'starting')
+        .catch((error: unknown) => {
+          this.dependencies.logger?.error('audio', 'Failed to save MP3 recording', error);
+          this.dependencies.feedback.show({
+            intent: 'error',
+            message: 'Could not save the MP3 recording. The transcript has been kept.',
+          });
+        });
+    }
     this.sessions.delete(sessionId);
     entry.speechLease.release();
 

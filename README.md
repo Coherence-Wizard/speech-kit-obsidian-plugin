@@ -1,3 +1,5 @@
+> **MP3 recording fork:** Enable **Settings → Speech Kit → Transcript output → Embed MP3 recording** to save microphone audio locally and prepend a playable audio embed to the note body. The option is off by default. See [installation and behavior](docs/guides/mp3-recording.md).
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/brittain9/speech-kit-obsidian-plugin/main/docs/media/hero-dark.png">
   <img src="https://raw.githubusercontent.com/brittain9/speech-kit-obsidian-plugin/main/docs/media/hero-light.png" alt="Speech Kit — Speech and language toolkit for Obsidian" width="100%">

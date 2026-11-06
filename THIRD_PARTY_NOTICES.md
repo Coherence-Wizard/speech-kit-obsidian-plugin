@@ -295,3 +295,15 @@ FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## MP3 encoder (this fork)
+
+- Work: @breezystack/lamejs 1.2.7, derived from lamejs by Alex Zhukov and LAME.
+- Source: https://github.com/shijinyu/lamejs
+- Exact distributed package: https://registry.npmjs.org/@breezystack/lamejs/-/lamejs-1.2.7.tgz
+- License: LGPL-3.0; see `licenses/lamejs-LGPL-3.0.txt`.
+
+This unmodified encoder is bundled into `main.js`. The fork source and pinned lockfile
+are supplied so recipients can replace or modify the encoder and rebuild with
+`npm ci` and `npm run build:frontend`. Reverse engineering for debugging modifications
+to this library is permitted under its license.

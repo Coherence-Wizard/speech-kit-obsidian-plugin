@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { formatMicrophonePermissionDeniedMessage } from '../src/audio/microphone-permission-message';
+import type { Mp3Recording } from '../src/audio/mp3-recording';
 import {
   type DictationControllerState,
   DictationSessionController,
@@ -3348,6 +3349,7 @@ function createController({
   audioLevelMeter = new FakeAudioLevelMeter(),
   captureStream = new FakeCaptureStream(),
   countAudioInputDevices,
+  createRecording,
   createSession,
   llmRouter = createFakeLlmRouter(),
   getSettings = () => createSettings({ selectedModel: createExternalModelSelection() }),
@@ -3367,6 +3369,7 @@ function createController({
   audioLevelMeter?: FakeAudioLevelMeter;
   captureStream?: FakeCaptureStream;
   countAudioInputDevices?: () => Promise<number | null>;
+  createRecording?: () => Promise<Mp3Recording>;
   createSession?: (session: FakeSession, options: CreateSessionOptions) => void;
   getSettings?: () => PluginSettings;
   hasDictationTarget?: () => boolean;
@@ -3392,6 +3395,7 @@ function createController({
       createSession?.(session, _options);
       return session;
     },
+    ...(createRecording ? { createRecording } : {}),
     createLlmRouter: () => llmRouter,
     feedback,
     getSettings,
@@ -3481,3 +3485,98 @@ function transcriptReady(
     ...overrides,
   };
 }
+
+describe('MP3 recording lifecycle', () => {
+  it.each([true, false])(
+    'saves after session teardown or discards on cancel (%s)',
+    async (cancel) => {
+      const recording = { append: vi.fn(), finish: vi.fn(async () => {}) };
+      const captureStream = new FakeCaptureStream();
+      const sidecarConnection = new FakeSidecarConnection();
+      const controller = createController({
+        captureStream,
+        sidecarConnection,
+        createRecording: async () => recording,
+        getSettings: () =>
+          createSettings({
+            embedMp3Recording: true,
+            selectedModel: createExternalModelSelection(),
+          }),
+      });
+      await controller.startDictation();
+      const sessionId = captureStream.sessionId;
+      if (!sessionId) throw new Error('Expected active session');
+      const frame = new Uint8Array([0, 0]);
+      captureStream.emitFrame(frame);
+      expect(recording.append).toHaveBeenCalledWith(frame);
+      if (cancel) {
+        await controller.cancelDictation();
+      } else {
+        await controller.stopDictation();
+        expect(recording.finish).not.toHaveBeenCalled();
+        sidecarConnection.emit({ reason: 'user_stop', sessionId, type: 'session_stopped' });
+      }
+      await vi.waitFor(() => expect(recording.finish).toHaveBeenCalledExactlyOnceWith(cancel));
+    },
+  );
+
+  it('continues transcription when recording storage fails', async () => {
+    const recording = {
+      append: vi.fn(() => {
+        throw new Error('disk full');
+      }),
+      finish: vi.fn(async () => {}),
+    };
+    const captureStream = new FakeCaptureStream();
+    const sidecarConnection = new FakeSidecarConnection();
+    const feedback = { show: vi.fn() };
+    const controller = createController({
+      captureStream,
+      sidecarConnection,
+      feedback,
+      createRecording: async () => recording,
+      getSettings: () =>
+        createSettings({ embedMp3Recording: true, selectedModel: createExternalModelSelection() }),
+    });
+    await controller.startDictation();
+    captureStream.emitFrame(new Uint8Array([0, 0]));
+    expect(recording.finish).toHaveBeenCalledWith(true);
+    expect(sidecarConnection.sendAudioFrame).toHaveBeenCalled();
+    expect(captureStream.isCapturing()).toBe(true);
+    expect(feedback.show).toHaveBeenCalledWith(expect.objectContaining({ intent: 'error' }));
+    await controller.cancelDictation();
+  });
+
+  it('discards a recording whose asynchronous setup completes after cancellation', async () => {
+    const recording = { append: vi.fn(), finish: vi.fn(async () => {}) };
+    let resolveRecording: ((recording: Mp3Recording) => void) | undefined;
+    const createRecording = vi.fn(
+      () =>
+        new Promise<Mp3Recording>((resolve) => {
+          resolveRecording = resolve;
+        }),
+    );
+    const captureStream = new FakeCaptureStream();
+    const controller = createController({
+      captureStream,
+      createRecording,
+      getSettings: () =>
+        createSettings({ embedMp3Recording: true, selectedModel: createExternalModelSelection() }),
+    });
+    const start = controller.startDictation();
+    await vi.waitFor(() => expect(createRecording).toHaveBeenCalled());
+    await controller.cancelDictation();
+    resolveRecording?.(recording);
+    await start;
+    expect(recording.finish).toHaveBeenCalledExactlyOnceWith(true);
+    expect(captureStream.start).not.toHaveBeenCalled();
+  });
+
+  it('does not create a recording when the option is off', async () => {
+    const createRecording = vi.fn();
+    const controller = createController({ createRecording });
+    await controller.startDictation();
+    expect(createRecording).not.toHaveBeenCalled();
+    await controller.cancelDictation();
+  });
+});
