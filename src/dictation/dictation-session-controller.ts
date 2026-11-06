@@ -115,6 +115,7 @@ type TerminalArbitrationState = 'open' | 'feedback-claimed' | 'cancelled';
 
 interface ManagedSession {
   recording?: Mp3Recording;
+  recordMixedAudio: boolean;
   anchorTimerId: number | null;
   capabilityDropLogKeys: Set<string>;
   // Final revisions enter this FIFO so concurrent per-utterance cleanups land
@@ -456,6 +457,7 @@ export class DictationSessionController {
     }
 
     const entry: ManagedSession = {
+      recordMixedAudio: settings.embedMp3Recording && settings.mp3IncludeSystemAudio,
       anchorTimerId: null,
       capabilityDropLogKeys: new Set(),
       cleanupChain: Promise.resolve(),
@@ -490,7 +492,7 @@ export class DictationSessionController {
         }
         entry.recording = recording;
       }
-      await this.dependencies.sidecarConnection.startSession({
+      const started = await this.dependencies.sidecarConnection.startSession({
         accelerationPreference: snapshot.accelerationPreference,
         // Engine segment timing is always present when the model provides it.
         // This legacy protocol flag only enables dense word alignment, which no
@@ -498,7 +500,8 @@ export class DictationSessionController {
         detailedTimestampsEnabled: false,
         diarizationEnabled: snapshot.diarizationEnabled,
         diarizationMaxSpeakers: snapshot.diarizationMaxSpeakers,
-        includeSystemAudio: snapshot.includeSystemAudio,
+        includeSystemAudio: snapshot.includeSystemAudio || entry.recordMixedAudio,
+        ...(entry.recordMixedAudio ? { emitRecordingAudio: true } : {}),
         language: snapshot.dictationLanguage,
         mode: snapshot.listeningMode,
         modelSelection: snapshot.modelSelection,
@@ -512,6 +515,11 @@ export class DictationSessionController {
 
       if (entry.phase !== 'starting' || this.activeSessionId !== sessionId) {
         return;
+      }
+      if (entry.recordMixedAudio && !started.recordingAudioEnabled) {
+        throw new Error(
+          'Mixed MP3 recording requires the updated Speech Kit native engine. Use the engine update prompt, then try again.',
+        );
       }
       entry.phase = 'active';
 
@@ -532,7 +540,7 @@ export class DictationSessionController {
           }
 
           try {
-            activeEntry.recording?.append(frameBytes);
+            if (!activeEntry.recordMixedAudio) activeEntry.recording?.append(frameBytes);
           } catch (error) {
             const recording = activeEntry.recording;
             delete activeEntry.recording;
@@ -831,6 +839,24 @@ export class DictationSessionController {
       case 'session_state_changed':
         this.handleSessionStateChanged(event);
         return;
+
+      case 'recording_audio': {
+        const entry = this.sessions.get(event.sessionId);
+        if (!entry?.recordMixedAudio || rejectsTranscriptWork(entry)) return;
+        try {
+          entry.recording?.append(Uint8Array.from(event.frameBytes));
+        } catch (error) {
+          const recording = entry.recording;
+          delete entry.recording;
+          void recording?.finish(true).catch(() => {});
+          this.dependencies.logger?.error('audio', 'Mixed MP3 capture failed', error);
+          this.dependencies.feedback.show({
+            intent: 'error',
+            message: 'MP3 recording failed. Dictation will continue without an audio attachment.',
+          });
+        }
+        return;
+      }
 
       case 'audio_level':
         this.handleAudioLevel(event);

@@ -125,6 +125,7 @@ export interface StartSessionCommand extends EnvelopeBase<'start_session'> {
   accelerationPreference: AccelerationPreference;
   /** Request consumed-frame progress for bounded file-audio delivery. */
   fileAudioFlowControl?: boolean;
+  emitRecordingAudio?: boolean;
   /** Opt in to adapter work needed for dense word alignment. */
   detailedTimestampsEnabled: boolean;
   diarizationEnabled: boolean;
@@ -363,6 +364,7 @@ export interface TranslationErrorEvent extends EnvelopeBase<'translation_error'>
 }
 
 export interface SessionStartedEvent extends EnvelopeBase<'session_started'> {
+  recordingAudioEnabled?: boolean;
   mode: ListeningMode;
   sessionId: string;
 }
@@ -370,6 +372,11 @@ export interface SessionStartedEvent extends EnvelopeBase<'session_started'> {
 export interface SessionStateChangedEvent extends EnvelopeBase<'session_state_changed'> {
   sessionId: string;
   state: SessionState;
+}
+
+export interface RecordingAudioEvent extends EnvelopeBase<'recording_audio'> {
+  sessionId: string;
+  frameBytes: number[];
 }
 
 export interface AudioLevelEvent extends EnvelopeBase<'audio_level'> {
@@ -434,6 +441,7 @@ export interface ErrorEvent extends EnvelopeBase<'error'> {
 }
 
 export type SidecarEvent =
+  | RecordingAudioEvent
   | AudioLevelEvent
   | ContextRequestEvent
   | ErrorEvent
@@ -666,6 +674,7 @@ export interface SynthesisAudioFrame {
 export type ParsedFrame<TEnvelope> = AudioFrame | JsonFrame<TEnvelope> | SynthesisAudioFrame;
 
 const SIDECAR_EVENT_TYPE_FLAGS = {
+  recording_audio: 1,
   audio_level: 1,
   context_request: 1,
   error: 1,
@@ -808,6 +817,18 @@ export function parseEventFrame(jsonText: string): SidecarEvent {
     throw new Error(`Unsupported sidecar event type: ${String(parsedValue.type)}`);
   }
 
+  if (
+    parsedValue.type === 'recording_audio' &&
+    (typeof parsedValue.sessionId !== 'string' ||
+      !Array.isArray(parsedValue.frameBytes) ||
+      parsedValue.frameBytes.length !== 640 ||
+      parsedValue.frameBytes.some(
+        (byte: unknown) =>
+          typeof byte !== 'number' || !Number.isInteger(byte) || byte < 0 || byte > 255,
+      ))
+  ) {
+    throw new Error('Invalid recording audio frame.');
+  }
   if (parsedValue.type.startsWith('translation_')) validateTranslationEvent(parsedValue);
 
   if (parsedValue.type === 'transcript_ready') {

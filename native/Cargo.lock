@@ -964,7 +964,7 @@ dependencies = [
 
 [[package]]
 name = "local-dictation-sidecar"
-version = "2026.10.1"
+version = "2026.11.7"
 dependencies = [
  "anyhow",
  "criterion",

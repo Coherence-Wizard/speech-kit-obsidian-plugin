@@ -162,7 +162,10 @@ export async function installSidecar(
   options: InstallSidecarOptions,
 ): Promise<InstallSidecarResult> {
   const assetName = detectPlatformAssetForCurrentEnv(options.variant);
-  const releaseBaseUrl = (options.releaseBaseUrl ?? DEFAULT_RELEASE_BASE_URL).replace(/\/$/, '');
+  const releaseBaseUrl = (
+    options.releaseBaseUrl ??
+    'https://github.com/Coherence-Wizard/speech-kit-obsidian-plugin/releases/download'
+  ).replace(/\/$/, '');
   const archiveUrl = `${releaseBaseUrl}/${options.version}/${assetName}`;
   const checksumsUrl = `${releaseBaseUrl}/${options.version}/checksums.txt`;
 

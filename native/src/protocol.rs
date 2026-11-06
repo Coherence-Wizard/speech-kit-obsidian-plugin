@@ -311,6 +311,8 @@ pub enum Command {
         #[serde(default)]
         include_system_audio: bool,
         #[serde(default)]
+        emit_recording_audio: bool,
+        #[serde(default)]
         file_audio_flow_control: bool,
         language: String,
         mode: ListeningMode,
@@ -530,12 +532,17 @@ pub enum Event {
         message: Option<String>,
     },
     SessionStarted {
+        recording_audio_enabled: bool,
         mode: ListeningMode,
         session_id: String,
     },
     SessionStateChanged {
         session_id: String,
         state: SessionState,
+    },
+    RecordingAudio {
+        session_id: String,
+        frame_bytes: Vec<u8>,
     },
     AudioLevel {
         bands: [f32; 6],
@@ -880,6 +887,7 @@ mod tests {
                 diarization_enabled: false,
                 diarization_max_speakers: None,
                 include_system_audio: true,
+                emit_recording_audio: false,
                 file_audio_flow_control: false,
                 language: "en".to_string(),
                 mode: ListeningMode::AlwaysOn,

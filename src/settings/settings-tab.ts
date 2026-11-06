@@ -366,8 +366,14 @@ export class LocalSttSettingTab extends PluginSettingTab {
 
     addToggleSetting(outputCard, this.access, {
       name: 'Embed MP3 recording',
-      desc: 'Save microphone audio using the note name and embed it at the start of the note body after dictation finishes. Encoding stays on this device. System audio is not included. Applies to new sessions; cancelled recordings are discarded.',
+      desc: 'Save microphone audio using the note name and embed it at the start of the note body after dictation finishes. Encoding stays on this device. Applies to new sessions; cancelled recordings are discarded.',
       key: 'embedMp3Recording',
+    });
+
+    addToggleSetting(outputCard, this.access, {
+      name: 'Mix computer audio into MP3',
+      desc: 'Record microphone and computer audio together. Also includes computer audio in transcription. Requires the updated native engine and system-audio permission. Applies to new sessions.',
+      key: 'mp3IncludeSystemAudio',
     });
 
     addToggleSetting(outputCard, this.access, {

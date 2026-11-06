@@ -77,6 +77,7 @@ pub struct AppState {
 
 struct ActiveSession {
     audio_mixer: AudioMixer,
+    emit_recording_audio: bool,
     file_audio_frames_consumed: Option<u64>,
     context_required: bool,
     context_budget_chars: u32,
@@ -247,6 +248,12 @@ impl AppState {
                     return events;
                 }
             };
+            if active_session.emit_recording_audio {
+                events.push(Event::RecordingAudio {
+                    session_id: session_id.clone(),
+                    frame_bytes: mixed.frame_bytes.clone(),
+                });
+            }
             let audio_level_event = audio_level_event_if_due(active_session, &mixed);
             let streaming_frame = mixed.frame_bytes.clone();
 
@@ -830,6 +837,7 @@ impl AppState {
                 diarization_enabled,
                 diarization_max_speakers,
                 include_system_audio,
+                emit_recording_audio,
                 file_audio_flow_control,
                 language,
                 mode,
@@ -970,6 +978,7 @@ impl AppState {
                         self.active_sessions.insert(
                             session_id.clone(),
                             ActiveSession {
+                                emit_recording_audio,
                                 audio_mixer: if include_system_audio {
                                     AudioMixer::microphone_with_system(session_id.clone())
                                 } else {
@@ -1012,6 +1021,7 @@ impl AppState {
                         }
 
                         events.push(Event::SessionStarted {
+                            recording_audio_enabled: emit_recording_audio,
                             mode,
                             session_id: session_id.clone(),
                         });
@@ -2726,6 +2736,7 @@ mod tests {
             events,
             vec![
                 Event::SessionStarted {
+                    recording_audio_enabled: false,
                     mode: ListeningMode::AlwaysOn,
                     session_id: "session-1".to_string(),
                 },
@@ -2750,6 +2761,7 @@ mod tests {
         ));
 
         assert!(start_events.contains(&Event::SessionStarted {
+            recording_audio_enabled: false,
             mode: ListeningMode::AlwaysOn,
             session_id: "session-1".to_string(),
         }));
@@ -2780,6 +2792,7 @@ mod tests {
             app.handle_command(start_session_command("session-1", &model_file_path));
 
         assert!(start_events.contains(&Event::SessionStarted {
+            recording_audio_enabled: false,
             mode: ListeningMode::AlwaysOn,
             session_id: "session-1".to_string(),
         }));
@@ -2843,6 +2856,37 @@ mod tests {
         );
         assert_eq!(system_audio.starts(), vec!["session-1"]);
         assert_eq!(system_audio.stops(), vec!["session-1"]);
+    }
+
+    #[test]
+    fn recording_audio_contains_mixed_samples_only_when_requested() {
+        for enabled in [false, true] {
+            let model_file_path = create_model_file();
+            let mut app = test_app_with_system_audio(FakeSystemAudioState::default());
+            let mut command = start_session_command_with_system_audio("session-1", &model_file_path, true);
+            if let Command::StartSession { emit_recording_audio, .. } = &mut command {
+                *emit_recording_audio = enabled;
+            }
+            let (_, started) = app.handle_command(command);
+            assert!(started.iter().any(|event| matches!(event,
+                Event::SessionStarted { recording_audio_enabled, .. } if *recording_audio_enabled == enabled)));
+            let samples = |sample: i16| sample.to_le_bytes().repeat(PCM_BYTES_PER_FRAME / 2);
+            app.handle_system_audio_frame(AudioFrame {
+                session_id: "session-1".to_string(), frame_bytes: samples(2000),
+            });
+            let events = app.handle_audio_frame(AudioFrame {
+                session_id: "session-1".to_string(), frame_bytes: samples(1000),
+            });
+            let recordings: Vec<_> = events.iter().filter_map(|event| match event {
+                Event::RecordingAudio { frame_bytes, .. } => Some(frame_bytes),
+                _ => None,
+            }).collect();
+            if enabled {
+                assert_eq!(recordings, vec![&samples(1500)]);
+            } else {
+                assert!(recordings.is_empty());
+            }
+        }
     }
 
     #[test]
@@ -3150,6 +3194,7 @@ mod tests {
         let (_, events) = app.handle_command(start_session_command("session-2", &model_file_path));
 
         assert!(events.contains(&Event::SessionStarted {
+            recording_audio_enabled: false,
             mode: ListeningMode::AlwaysOn,
             session_id: "session-2".to_string(),
         }));
@@ -4218,6 +4263,7 @@ mod tests {
             diarization_enabled: false,
             diarization_max_speakers: None,
             include_system_audio,
+            emit_recording_audio: false,
             file_audio_flow_control: false,
             language: "en".to_string(),
             mode: ListeningMode::AlwaysOn,

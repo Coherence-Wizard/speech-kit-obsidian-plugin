@@ -1,0 +1,36 @@
+name: mixed-audio-native
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      GGML_NATIVE: 'OFF'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.94.1'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native -> target
+      - run: cargo test --locked --manifest-path native/Cargo.toml --lib
+      - run: npm run build:sidecar:release
+      - run: |
+          codesign --force --sign - native/target/release/local-dictation-sidecar
+          codesign --force --sign - native/target/release/local-dictation-translation-helper
+      - run: node scripts/package-sidecar-archive.mjs
+        env:
+          ARCHIVE_NAME: sidecar-macos-arm64.tar.gz
+          ASSET_NAME: sidecar-macos-arm64
+          BINARY_PATH: native/target/release/local-dictation-sidecar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-macos-arm64
+          path: dist/sidecar-macos-arm64.tar.gz

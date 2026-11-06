@@ -166,6 +166,7 @@ export interface PluginSettings {
   audioInputDevice: AudioInputDevice | null;
   includeSystemAudio: boolean;
   embedMp3Recording: boolean;
+  mp3IncludeSystemAudio: boolean;
   mp3RecordingBesideNote: boolean;
   mp3RecordingFolder: string;
   cudaLibraryPath: string;
@@ -237,6 +238,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = {
   audioInputDevice: null,
   includeSystemAudio: false,
   embedMp3Recording: false,
+  mp3IncludeSystemAudio: false,
   mp3RecordingBesideNote: true,
   mp3RecordingFolder: 'Audio',
   cudaLibraryPath: '',
@@ -337,6 +339,7 @@ export function resolvePluginSettings(data: unknown): PluginSettings {
     audioInputDevice: readAudioInputDevice(raw.audioInputDevice),
     includeSystemAudio: readIncludeSystemAudio(raw),
     embedMp3Recording: readBoolean(raw.embedMp3Recording, false),
+    mp3IncludeSystemAudio: readBoolean(raw.mp3IncludeSystemAudio, false),
     mp3RecordingBesideNote: readBoolean(raw.mp3RecordingBesideNote, true),
     mp3RecordingFolder: readString(raw.mp3RecordingFolder, 'Audio'),
     cudaLibraryPath: readString(raw.cudaLibraryPath, DEFAULT_PLUGIN_SETTINGS.cudaLibraryPath),
