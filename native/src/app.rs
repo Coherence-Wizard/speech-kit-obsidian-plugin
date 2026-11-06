@@ -2863,8 +2863,13 @@ mod tests {
         for enabled in [false, true] {
             let model_file_path = create_model_file();
             let mut app = test_app_with_system_audio(FakeSystemAudioState::default());
-            let mut command = start_session_command_with_system_audio("session-1", &model_file_path, true);
-            if let Command::StartSession { emit_recording_audio, .. } = &mut command {
+            let mut command =
+                start_session_command_with_system_audio("session-1", &model_file_path, true);
+            if let Command::StartSession {
+                emit_recording_audio,
+                ..
+            } = &mut command
+            {
                 *emit_recording_audio = enabled;
             }
             let (_, started) = app.handle_command(command);
@@ -2872,15 +2877,20 @@ mod tests {
                 Event::SessionStarted { recording_audio_enabled, .. } if *recording_audio_enabled == enabled)));
             let samples = |sample: i16| sample.to_le_bytes().repeat(PCM_BYTES_PER_FRAME / 2);
             app.handle_system_audio_frame(AudioFrame {
-                session_id: "session-1".to_string(), frame_bytes: samples(2000),
+                session_id: "session-1".to_string(),
+                frame_bytes: samples(2000),
             });
             let events = app.handle_audio_frame(AudioFrame {
-                session_id: "session-1".to_string(), frame_bytes: samples(1000),
+                session_id: "session-1".to_string(),
+                frame_bytes: samples(1000),
             });
-            let recordings: Vec<_> = events.iter().filter_map(|event| match event {
-                Event::RecordingAudio { frame_bytes, .. } => Some(frame_bytes),
-                _ => None,
-            }).collect();
+            let recordings: Vec<_> = events
+                .iter()
+                .filter_map(|event| match event {
+                    Event::RecordingAudio { frame_bytes, .. } => Some(frame_bytes),
+                    _ => None,
+                })
+                .collect();
             if enabled {
                 assert_eq!(recordings, vec![&samples(1500)]);
             } else {
