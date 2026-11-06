@@ -17,7 +17,15 @@ Changing the setting during a session affects the next recording.
 Temporary compressed audio is removed on completion or cancellation. An application
 crash may leave a temporary `speech-kit-recording-*` directory in the OS temp folder.
 
-## Install
+## Install with BRAT
+
+In BRAT settings, choose **Add beta plugin** and enter
+`https://github.com/Coherence-Wizard/speech-kit-obsidian-plugin`.
+Select version **2026.11.5** (or latest), install, and enable Speech Kit.
+If Speech Kit is already installed, disable it first; keep its settings and models.
+Then enable **Embed MP3 recording** in Speech Kit's Transcript output settings.
+
+## Install manually
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from this fork's release.
 2. Disable Speech Kit in Obsidian and back up those three files in
