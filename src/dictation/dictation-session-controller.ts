@@ -517,9 +517,13 @@ export class DictationSessionController {
         return;
       }
       if (entry.recordMixedAudio && !started.recordingAudioEnabled) {
-        throw new Error(
-          'Mixed MP3 recording requires the updated Speech Kit native engine. Use the engine update prompt, then try again.',
-        );
+        await this.cancelSession(sessionId);
+        this.dependencies.feedback.show({
+          intent: 'error',
+          message:
+            'Mixed MP3 recording requires the updated Speech Kit native engine. Use the engine update prompt, then try again.',
+        });
+        return;
       }
       entry.phase = 'active';
 
@@ -1780,7 +1784,8 @@ function createSessionSnapshot(
     diarizationEnabled: settings.diarizationEnabled,
     diarizationMaxSpeakers: settings.diarizationMaxSpeakers,
     dictationLanguage: settings.dictationLanguage,
-    includeSystemAudio: settings.includeSystemAudio,
+    includeSystemAudio:
+      settings.includeSystemAudio || (settings.embedMp3Recording && settings.mp3IncludeSystemAudio),
     dictationAnchor: settings.dictationAnchor,
     listeningMode: settings.listeningMode,
     llmFeaturesEnabled: settings.llmFeaturesEnabled,

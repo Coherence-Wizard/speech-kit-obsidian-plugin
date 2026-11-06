@@ -10,8 +10,19 @@ selected recording location and a playable embed is inserted at the beginning of
 the original note's body, after YAML frontmatter when present. The generated link
 respects Obsidian's link preferences (for example `![[Note name.mp3]]`).
 
-The capture is microphone-only. System audio captured by the native speech engine,
-imported media, and read-aloud playback are not recorded by this option.
+By default the recording contains only your microphone. Enable **Mix computer audio
+into MP3** to record the native engine's combined microphone and computer-audio stream.
+This also includes computer audio in transcription. Install the engine update offered
+by Speech Kit after updating the plugin through BRAT; an older engine will refuse a
+mixed recording rather than silently produce microphone-only audio.
+
+The 2026.11.7 native package is built for Apple silicon Macs. On macOS, allow Obsidian
+under System Settings → Privacy & Security → Screen & System Audio Recording when
+requested. Microphone permission is also required. The existing native mixer averages
+the two sources to avoid clipping; it records all captured audio, including silence,
+independently of whether the recognizer detects speech.
+
+Imported media and read-aloud sessions do not produce recordings through this option.
 Cancelled sessions discard their audio. Empty sessions create no attachment.
 Changing the setting during a session affects the next recording.
 Use **Save MP3 beside the note** (on by default) to save next to the note. Turn it off
@@ -29,7 +40,7 @@ crash may leave a temporary `speech-kit-recording-*` directory in the OS temp fo
 
 In BRAT settings, choose **Add beta plugin** and enter
 `https://github.com/Coherence-Wizard/speech-kit-obsidian-plugin`.
-Select version **2026.11.6** (or latest), install, and enable Speech Kit.
+Select version **2026.11.7** (or latest), install, and enable Speech Kit.
 If Speech Kit is already installed, disable it first; keep its settings and models.
 Then enable **Embed MP3 recording** in Speech Kit's Transcript output settings.
 

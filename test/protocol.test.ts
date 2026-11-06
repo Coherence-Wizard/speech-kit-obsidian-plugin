@@ -770,3 +770,24 @@ function readPayload(frame: Uint8Array): unknown {
 
   return JSON.parse(new TextDecoder().decode(payloadBytes));
 }
+
+describe('mixed recording protocol', () => {
+  it('accepts a full PCM frame', () => {
+    const event = {
+      type: 'recording_audio',
+      sessionId: SESSION_ID,
+      frameBytes: Array(640).fill(0),
+    };
+    expect(parseEventFrame(JSON.stringify(event))).toEqual(event);
+  });
+  it.each([[], [256], Array(640).fill(-1), Array(640).fill(0.5)])(
+    'rejects malformed PCM data',
+    (frameBytes) => {
+      expect(() =>
+        parseEventFrame(
+          JSON.stringify({ type: 'recording_audio', sessionId: SESSION_ID, frameBytes }),
+        ),
+      ).toThrow('Invalid recording audio');
+    },
+  );
+});

@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { getExistingPathKind } from '../filesystem/path-validation';
 import { runManagedProcess } from '../media/process-runner';
 import {
-  DEFAULT_RELEASE_BASE_URL,
   downloadToFile,
   extractTarGz,
   markExecutable,
+  UPSTREAM_RELEASE_BASE_URL,
 } from '../sidecar/sidecar-installer';
 
 export const MEDIA_TOOL_VERSION = '9.0.2-2';
@@ -91,7 +91,7 @@ export async function installMediaTools(options: InstallMediaToolsOptions): Prom
   const staging = join(parent, `.ffmpeg-staging-${randomUUID()}`);
   const destination = mediaToolDirectory(options.pluginDirectory);
   const backup = join(parent, '.ffmpeg-previous');
-  const releaseBase = (options.releaseBaseUrl ?? DEFAULT_RELEASE_BASE_URL).replace(/\/$/u, '');
+  const releaseBase = (options.releaseBaseUrl ?? UPSTREAM_RELEASE_BASE_URL).replace(/\/$/u, '');
   const archiveUrl = `${releaseBase}/${RELEASE_TAG}/${name}`;
   try {
     await mkdir(staging, { recursive: true });

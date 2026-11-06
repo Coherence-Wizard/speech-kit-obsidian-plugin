@@ -3580,3 +3580,69 @@ describe('MP3 recording lifecycle', () => {
     await controller.cancelDictation();
   });
 });
+
+describe('mixed MP3 recording', () => {
+  it('encodes the native mix instead of duplicating microphone frames, including draining frames', async () => {
+    const recording = { append: vi.fn(), finish: vi.fn(async () => {}) };
+    const captureStream = new FakeCaptureStream();
+    const sidecarConnection = new FakeSidecarConnection();
+    sidecarConnection.startSession.mockImplementation(async (payload) => ({
+      mode: payload.mode,
+      sessionId: payload.sessionId,
+      type: 'session_started',
+      recordingAudioEnabled: true,
+    }));
+    const controller = createController({
+      captureStream,
+      sidecarConnection,
+      createRecording: async () => recording,
+      getSettings: () =>
+        createSettings({
+          embedMp3Recording: true,
+          mp3IncludeSystemAudio: true,
+          includeSystemAudio: false,
+          selectedModel: createExternalModelSelection(),
+        }),
+    });
+    await controller.startDictation();
+    const sessionId = captureStream.sessionId;
+    if (!sessionId) throw new Error('Expected active capture');
+    expect(sidecarConnection.startSession).toHaveBeenCalledWith(
+      expect.objectContaining({ includeSystemAudio: true, emitRecordingAudio: true }),
+    );
+    captureStream.emitFrame(new Uint8Array(640));
+    expect(recording.append).not.toHaveBeenCalled();
+    sidecarConnection.emit({ type: 'recording_audio', sessionId, frameBytes: Array(640).fill(12) });
+    expect(recording.append).toHaveBeenCalledWith(new Uint8Array(640).fill(12));
+    await controller.stopDictation();
+    sidecarConnection.emit({ type: 'recording_audio', sessionId, frameBytes: Array(640).fill(13) });
+    expect(recording.append).toHaveBeenCalledTimes(2);
+    sidecarConnection.emit({ type: 'session_stopped', sessionId, reason: 'user_stop' });
+    await vi.waitFor(() => expect(recording.finish).toHaveBeenCalledWith(false));
+  });
+
+  it('requires a capable engine instead of silently recording microphone-only audio', async () => {
+    const captureStream = new FakeCaptureStream();
+    const recording = { append: vi.fn(), finish: vi.fn(async () => {}) };
+    const feedback = { show: vi.fn() };
+    const controller = createController({
+      captureStream,
+      feedback,
+      createRecording: async () => recording,
+      getSettings: () =>
+        createSettings({
+          embedMp3Recording: true,
+          mp3IncludeSystemAudio: true,
+          selectedModel: createExternalModelSelection(),
+        }),
+    });
+    await controller.startDictation();
+    expect(captureStream.start).not.toHaveBeenCalled();
+    expect(recording.finish).toHaveBeenCalledWith(true);
+    expect(feedback.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('updated Speech Kit native engine'),
+      }),
+    );
+  });
+});
