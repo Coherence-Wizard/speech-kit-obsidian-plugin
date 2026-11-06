@@ -278,7 +278,10 @@ export default class LocalSttPlugin extends Plugin {
       createRecording: () => {
         const file = this.app.workspace.getActiveFile();
         if (!file) throw new Error('No note is open for the MP3 recording.');
-        return createMp3Recording(this.app, file);
+        return createMp3Recording(this.app, file, {
+          besideNote: this.settings.mp3RecordingBesideNote,
+          folder: this.settings.mp3RecordingFolder,
+        });
       },
       createSession: ({ callbacks, placement, rendererOptions, sessionId }) =>
         Session.createFromActiveEditor(this.app, {

@@ -366,8 +366,20 @@ export class LocalSttSettingTab extends PluginSettingTab {
 
     addToggleSetting(outputCard, this.access, {
       name: 'Embed MP3 recording',
-      desc: 'Save microphone audio to your attachment folder and embed it at the start of the note body after dictation finishes. Encoding stays on this device. System audio is not included. Applies to new sessions; cancelled recordings are discarded.',
+      desc: 'Save microphone audio using the note name and embed it at the start of the note body after dictation finishes. Encoding stays on this device. System audio is not included. Applies to new sessions; cancelled recordings are discarded.',
       key: 'embedMp3Recording',
+    });
+
+    addToggleSetting(outputCard, this.access, {
+      name: 'Save MP3 beside the note',
+      desc: 'When enabled, saves Note name.mp3 beside its note. Turn off to use the folder below. Existing recordings receive a numbered suffix.',
+      key: 'mp3RecordingBesideNote',
+    });
+    addTextSetting(outputCard, this.access, {
+      name: 'MP3 attachment folder',
+      desc: 'Folder inside this vault, used when saving beside the note is off. Missing folders are created. Leave blank for the vault root.',
+      key: 'mp3RecordingFolder',
+      placeholder: 'Audio',
     });
 
     renderAutomaticCopyFinalizedUtterancesSetting(outputCard, this.access);

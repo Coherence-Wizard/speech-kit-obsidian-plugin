@@ -6,22 +6,30 @@ It is disabled by default and applies to sessions started after changing the set
 When enabled, live microphone dictation also produces a 16 kHz mono, 64 kbps MP3.
 Encoding happens locally, incrementally, with no extra installation or network upload.
 On completion of transcription and any AI cleanup, the recording is saved in Obsidian's
-configured attachment location and a playable embed is inserted at the beginning of
+selected recording location and a playable embed is inserted at the beginning of
 the original note's body, after YAML frontmatter when present. The generated link
-respects Obsidian's link preferences (for example `![[Recording-….mp3]]`).
+respects Obsidian's link preferences (for example `![[Note name.mp3]]`).
 
 The capture is microphone-only. System audio captured by the native speech engine,
 imported media, and read-aloud playback are not recorded by this option.
 Cancelled sessions discard their audio. Empty sessions create no attachment.
 Changing the setting during a session affects the next recording.
-Temporary compressed audio is removed on completion or cancellation. An application
+Use **Save MP3 beside the note** (on by default) to save next to the note. Turn it off
+and set **MP3 attachment folder** to a path within the vault such as `M - MEDIA`
+or `Audio/Meetings`. Missing folders are created; a blank folder means the vault root.
+The recording uses the note's current name: `Meeting.md` becomes `Meeting.mp3`.
+Existing files are preserved by adding `(1)`, `(2)`, and so on.
+
+Temporary compressed audio is removed after a successful save or cancellation.
+If saving fails, the error displays the retained MP3's recovery path. If the MP3
+was saved but the embed failed, the error identifies the attachment in the vault. An application
 crash may leave a temporary `speech-kit-recording-*` directory in the OS temp folder.
 
 ## Install with BRAT
 
 In BRAT settings, choose **Add beta plugin** and enter
 `https://github.com/Coherence-Wizard/speech-kit-obsidian-plugin`.
-Select version **2026.11.5** (or latest), install, and enable Speech Kit.
+Select version **2026.11.6** (or latest), install, and enable Speech Kit.
 If Speech Kit is already installed, disable it first; keep its settings and models.
 Then enable **Embed MP3 recording** in Speech Kit's Transcript output settings.
 

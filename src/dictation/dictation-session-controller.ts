@@ -768,7 +768,7 @@ export class DictationSessionController {
           this.dependencies.logger?.error('audio', 'Failed to save MP3 recording', error);
           this.dependencies.feedback.show({
             intent: 'error',
-            message: 'Could not save the MP3 recording. The transcript has been kept.',
+            message: `The transcript has been kept. ${formatErrorMessage(error)}`,
           });
         });
     }

@@ -1,6 +1,11 @@
 import type { App, TFile } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
-import { createMp3Recording, prependRecordingEmbed } from '../src/audio/mp3-recording';
+import {
+  createMp3Recording,
+  prependRecordingEmbed,
+  recordingAttachmentPath,
+  recordingFolder,
+} from '../src/audio/mp3-recording';
 
 describe('recording embeds', () => {
   it.each([
@@ -28,6 +33,7 @@ describe('recording embeds', () => {
         generateMarkdownLink: () => '[[attachments/recording.mp3]]',
       },
       vault: {
+        adapter: { stat: async () => ({ type: 'folder' }), exists: async () => false },
         getAbstractFileByPath: () => note,
         createBinary,
         process: vi.fn(async (_note, update) => {
@@ -45,10 +51,8 @@ describe('recording embeds', () => {
     note.path = 'renamed.md';
     await recording.finish(false);
     await recording.finish(false);
-    expect(getAvailablePathForAttachment).toHaveBeenCalledWith(
-      expect.stringMatching(/\.mp3$/u),
-      'renamed.md',
-    );
+    expect(getAvailablePathForAttachment).not.toHaveBeenCalled();
+    expect(createBinary).toHaveBeenCalledWith('renamed.mp3', expect.any(ArrayBuffer));
     expect(content).toBe('---\ntitle: Hello\n---\n![[attachments/recording.mp3]]\n\nlatest edits');
     expect(createBinary).toHaveBeenCalledTimes(1);
     expect(mp3.length).toBeGreaterThan(8000);
@@ -64,4 +68,90 @@ describe('recording embeds', () => {
       await recording.finish(cancel);
     },
   );
+});
+
+describe('MP3 save recovery', () => {
+  it('uses an existing folder on disk without recreating it or using the failing attachment helper', async () => {
+    const createFolder = vi.fn();
+    const app = {
+      vault: {
+        adapter: { stat: async () => ({ type: 'folder' }), exists: async () => false },
+        createFolder,
+      },
+    } as unknown as App;
+    expect(
+      await recordingAttachmentPath(app, { path: 'Notes/Meeting.md' } as TFile, {
+        besideNote: false,
+        folder: 'M - MEDIA',
+      }),
+    ).toBe('M - MEDIA/Meeting.mp3');
+    expect(createFolder).not.toHaveBeenCalled();
+  });
+
+  it('creates nested folders and avoids overwriting earlier recordings', async () => {
+    const folders = new Set<string>();
+    const app = {
+      vault: {
+        adapter: {
+          stat: async (path: string) => (folders.has(path) ? { type: 'folder' } : null),
+          exists: async (path: string) =>
+            ['Audio/Meetings/Meeting.mp3', 'Audio/Meetings/Meeting (1).mp3'].includes(path),
+        },
+        createFolder: vi.fn(async (path: string) => {
+          folders.add(path);
+        }),
+      },
+    } as unknown as App;
+    expect(
+      await recordingAttachmentPath(app, { path: 'Meeting.md' } as TFile, {
+        besideNote: false,
+        folder: 'Audio/Meetings',
+      }),
+    ).toBe('Audio/Meetings/Meeting (2).mp3');
+    expect([...folders]).toEqual(['Audio', 'Audio/Meetings']);
+  });
+
+  it.each(['/outside', '../outside', 'Audio/../outside', 'C:\\outside'])(
+    'rejects paths outside the vault: %s',
+    (folder) => {
+      expect(() => recordingFolder('Note.md', { besideNote: false, folder })).toThrow(
+        'inside this vault',
+      );
+    },
+  );
+
+  it('supports notes at the root and folders next to a renamed note', () => {
+    expect(recordingFolder('Note.md', { besideNote: true, folder: 'ignored' })).toBe('');
+    expect(recordingFolder('Moved/Note.md', { besideNote: true, folder: 'ignored' })).toBe('Moved');
+    expect(recordingFolder('Note.md', { besideNote: false, folder: '' })).toBe('');
+  });
+
+  it('preserves the encoded MP3 when the vault write fails', async () => {
+    const note = { path: 'test.md' } as TFile;
+    const app = {
+      fileManager: { getAvailablePathForAttachment: async () => 'recording.mp3' },
+      vault: {
+        adapter: { stat: async () => ({ type: 'folder' }), exists: async () => false },
+        getAbstractFileByPath: () => note,
+        createBinary: async () => {
+          throw new Error('disk full');
+        },
+      },
+    } as unknown as App;
+    const recording = await createMp3Recording(app, note);
+    recording.append(new Uint8Array(640));
+    const failure = await recording.finish(false).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    const message = (failure as Error).message;
+    expect(message).toContain('disk full');
+    const path = /preserved at "([^"]+)"/u.exec(message)?.[1];
+    if (!path) throw new Error('Expected recovery path');
+    const { readFile, rm } = await import('node:fs/promises');
+    const { dirname } = await import('node:path');
+    try {
+      expect((await readFile(path)).length).toBeGreaterThan(0);
+    } finally {
+      await rm(dirname(path), { recursive: true });
+    }
+  });
 });
